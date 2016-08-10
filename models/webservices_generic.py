@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from openerp import fields, api, models, _
-import time, md5
-from datetime import datetime, timedelta
+import hashlib
 from openerp.exceptions import Warning
-import os, sys, json
+import json
 try:
     import urllib3
 except ImportError:
@@ -28,7 +27,7 @@ class webservices_generic(models.Model):
     @api.multi
     def action_test_connection(self):
         self.ensure_one()
-        rr = self.generic_connection()
+        rr, r = self.generic_connection()
         # analiza la respuesta
         try:
             _logger.info('status %s' % (r.status))
@@ -42,7 +41,6 @@ class webservices_generic(models.Model):
             raise Warning(_('Result: %s!' % json.dumps(rr['data'])))
         else:
             raise Warning(_('Result: %s!' % rr['data']))
-
 
     def generic_connection(self):
         _logger.warning('Entering function "test connection"')
@@ -69,10 +67,12 @@ class webservices_generic(models.Model):
             
         # esquema de datos complejo (no funciona) por ejemplo, Sugarcrm
         elif self.auth_method == 'user_password':
+            password_md5 =  hashlib.md5()
+            password_md5.update(self.password)
             headers={'Content-Type': 'application/json'}
             parameters = {'user_auth': {
                 'user_name': self.user,
-                'password': md5.new(self.password).hexdigest(),
+                'password': password_md5.hexdigest(),
                 'version' : '1'
             }}
             print parameters
@@ -104,12 +104,9 @@ class webservices_generic(models.Model):
         else:
             rr['data'] = r.data
             _logger.warning('formato NO json, status: %s' % r.status)
-        return rr
-        
-
+        return rr, r
     
     name = fields.Char('Name', required=True)
-
     auth_method = fields.Selection(
         [
             ('headers_token', 'Token sent in header'),
@@ -118,7 +115,6 @@ class webservices_generic(models.Model):
             ('user_password', 'User and password (get token)'),
         ], 'Auth Method',
         help="""Defines the authentication method used by the webservice""")
-
     http_auth_method = fields.Selection(
         [
             ('GET','GET'),
@@ -126,25 +122,15 @@ class webservices_generic(models.Model):
             ('PUT','PUT')
         ], 'HTTP Method (auth)',
         help="""Defines the http method used for authentication""")
-
     auth_method_name = fields.Char('Auth Method Name')
-
     user_var = fields.Char('User Param. Name')
-
     user = fields.Char('User')
-
     password_var = fields.Char('Password Param. Name')
-
     password = fields.Char('Password')
-
     url = fields.Char('URL')
-
     just_url = fields.Boolean('Test URL only')
-
     token = fields.Char('Token')
-
     active = fields.Boolean('Active', default=True)
-
     custom_library = fields.Selection(
         [
             ('','Nope'),
@@ -152,37 +138,28 @@ class webservices_generic(models.Model):
             ('P','Yes, Public URL'),
         ],
         'Third party library',
-        help="""Defines if connection is made over standard libraries or 
-third parties libraries, as, for example: 'Sugarcrm (own url)' or 'Mandrill'
-(mandrill url included in module)""")
-
+        help="""Defines if connection is made over standard libraries or third parties libraries, as, for example:
+        'Sugarcrm (own url)' or 'Mandrill' (mandrill url included in module)""")
     scope = fields.Selection(
         [
             ('generic', 'Generic Use'),
             ('by_user', 'Use by user: each user has its own key')
-        ],'Scope Use', help="""Defines Security Scope of use of the service
-Generic Use: one service for all with Odoo Security
-User by user: each user has its own key/token
+        ],'Scope Use', help="""Defines Security Scope of use of the service Generic Use: one service for all with Odoo
+        Security
+        User by user: each user has its own key/token
         """,
         required=True)
-
     # request_format_name = fields.Char('Request Format Name')
-    
     # request_format = fields.Selection(available_format, 'Request Format',
     #    help='Defines Expected Response Format', required=True, default='JSON')
-    
     response_format_name = fields.Char('Response Format Name')
-    
     response_format = fields.Selection(available_format, 'Response Format',
         help='Defines Expected Response Format', required=True, default='JSON')
-    
     additional_parameter = fields.Char('Additional Parameter Name for Format',
-        help="""Just provide the parameter_name required by the server to 
-specify the desired format (i.e: &parameter_name='JSON')""")
-    
+        help="""Just provide the parameter_name required by the server to specify the desired format
+        (i.e: &parameter_name='JSON')""")
     srv_users_ids = fields.One2many(
         'ws.srv.users', 'ws_server_id', string='Webservice Users')
-
 
 class ws_srv_users(models.Model):
     _name = "ws.srv.users"
